@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NhaCarro - Painel de Gestão Bissau</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f6f9; color: #333; padding: 20px; }
+        header { background-color: #ffb300; padding: 20px; border-radius: 12px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        header h1 { font-size: 24px; color: #000; }
+        header span { font-weight: bold; background: #000; color: #ffb300; padding: 6px 12px; border-radius: 20px; font-size: 13px; }
+        
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 5px solid #ffb300; }
+        .card h3 { font-size: 14px; color: #666; margin-bottom: 10px; }
+        .card .number { font-size: 28px; font-weight: bold; color: #111; }
+        .card .subtext { font-size: 12px; color: #28a745; margin-top: 5px; font-weight: bold; }
+
+        .table-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .table-container h2 { font-size: 18px; margin-bottom: 15px; color: #222; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 14px; }
+        th { background-color: #fafafa; color: #555; }
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+        .badge-success { background-color: #d4edda; color: #155724; }
+        .badge-warning { background-color: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>NhaCarro - Bissau Dashboard</h1>
+        <span>SISTEMA AO VIVO</span>
+    </header>
+
+    <!-- METRICAS PRINCIPAIS -->
+    <div class="metrics-grid">
+        <div class="card">
+            <h3>TOTAL DE CORRIDAS</h3>
+            <div class="number" id="totalCorridas">--</div>
+            <div class="subtext">Viagens registradas</div>
+        </div>
+        <div class="card" style="border-left-color: #28a745;">
+            <h3>COMISSÕES ACUMULADAS (12%)</h3>
+            <div class="number" id="totalComissoes">-- CFA</div>
+            <div class="subtext">Receita do NhaCarro</div>
+        </div>
+        <div class="card" style="border-left-color: #17a2b8;">
+            <h3>MOTORISTAS ATIVOS</h3>
+            <div class="number" id="motoristasAtivos">--</div>
+            <div class="subtext">Em circulação em Bissau</div>
+        </div>
+    </div>
+
+    <!-- TABELA DE CORRIDAS RECENTES -->
+    <div class="table-container">
+        <h2>Últimas Corridas Solicitadas</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Data/Hora</th>
+                    <th>Valor Total</th>
+                    <th>Comissão (12%)</th>
+                    <th>Pagamento</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="tabelaCorridas">
+                <tr>
+                    <td colspan="5" style="text-align:center;">A carregar dados de Bissau...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Função para procurar os dados na tua API no Render
+        async function carregarDadosDashboard() {
+            try {
+                const resposta = await fetch('https://nhacarro-api.onrender.com/estatisticas-admin');
+                const dados = await resposta.json();
+
+                document.getElementById('totalCorridas').innerText = dados.totalCorridas || '0';
+                document.getElementById('totalComissoes').innerText = (dados.totalComissoes || 0).toLocaleString('pt-PT') + ' CFA';
+                document.getElementById('motoristasAtivos').innerText = dados.motoristasAtivos || '0';
+
+                let tabelaHtml = '';
+                if(dados.ultimasCorridas && dados.ultimasCorridas.length > 0) {
+                    dados.ultimasCorridas.forEach(c => {
+                        const dataFormatada = new Date(c.criado_em).toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'});
+                        tabelaHtml += `
+                            <tr>
+                                <td>${dataFormatada}</td>
+                                <td><b>${c.valor_total} CFA</b></td>
+                                <td style="color: #28a745;"><b>${c.valor_comissao} CFA</b></td>
+                                <td>${c.forma_pagamento}</td>
+                                <td><span class="badge badge-success">${c.status}</span></td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tabelaHtml = '<tr><td colspan="5" style="text-align:center;">Nenhuma corrida gravada ainda.</td></tr>';
+                }
+
+                document.getElementById('tabelaCorridas').innerHTML = tabelaHtml;
+            } catch (erro) {
+                console.error('Erro ao carregar dados:', erro);
+            }
+        }
+
+        // Atualiza os dados a cada 10 segundos automaticamente
+        carregarDadosDashboard();
+        setInterval(carregarDadosDashboard, 10000);
+    </script>
+</body>
+</html>
