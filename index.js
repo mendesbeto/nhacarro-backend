@@ -66,5 +66,24 @@ app.get('/estatisticas-admin', async (req, res) => {
   }
 });
 
+// Endpoint para registar novos utilizadores (Passageiros e Motoristas)
+app.post('/registar-usuario', async (req, res) => {
+  const { nome, telefone, tipoPerfil } = req.body;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO usuarios (nome, telefone, tipo_perfil, status_conta, saldo_carteira)
+       VALUES ($1, $2, $3, 'ATIVO', $4)
+       ON CONFLICT (telefone) DO UPDATE SET nome = EXCLUDED.nome
+       RETURNING id, nome, telefone, tipo_perfil, saldo_carteira`,
+      [nome, telefone, tipoPerfil || 'PASSAGEIRO', tipoPerfil === 'MOTORISTA' ? 5000.00 : 0.00]
+    );
+
+    res.json({ mensagem: 'Utilizador registado com sucesso!', usuario: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Motor a rodar na porta ${PORT}`));
