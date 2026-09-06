@@ -66,7 +66,7 @@ app.get('/estatisticas-admin', async (req, res) => {
   }
 });
 
-// Endpoint para registar novos utilizadores (Passageiros e Motoristas)
+// Endpoint para registrar novos passageiros e motoristas
 app.post('/registar-usuario', async (req, res) => {
   const { nome, telefone, tipoPerfil } = req.body;
 
@@ -76,11 +76,18 @@ app.post('/registar-usuario', async (req, res) => {
        VALUES ($1, $2, $3, 'ATIVO', $4)
        ON CONFLICT (telefone) DO UPDATE SET nome = EXCLUDED.nome
        RETURNING id, nome, telefone, tipo_perfil, saldo_carteira`,
-      [nome, telefone, tipoPerfil || 'PASSAGEIRO', tipoPerfil === 'MOTORISTA' ? 5000.00 : 0.00]
+      [
+        nome || 'Passageiro Bissau', 
+        telefone, 
+        tipoPerfil || 'PASSAGEIRO', 
+        tipoPerfil === 'MOTORISTA' ? 5000.00 : 0.00
+      ]
     );
 
-    res.json({ mensagem: 'Utilizador registado com sucesso!', usuario: result.rows[0] });
+    console.log('Usuário gravado com sucesso:', result.rows[0]);
+    res.json({ mensagem: 'Usuário gravado com sucesso!', usuario: result.rows[0] });
   } catch (err) {
+    console.error('Erro ao gravar usuário:', err.message);
     res.status(500).json({ erro: err.message });
   }
 });
