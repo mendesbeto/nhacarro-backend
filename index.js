@@ -4,51 +4,105 @@ const { Pool } = require('pg');
 
 const app = express();
 
-// Permite conexões de qualquer dispositivo/app
 app.use(cors());
 app.use(express.json());
 
-// Conexão com a base de dados Supabase
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// Teste de saúde da API
 app.get('/', (req, res) => {
-  res.send('O Motor do NhaCarro está a funcionar perfeitamente em Bissau!');
+  res.send('O Motor do NhaCarro está operacional com suporte a tempo real!');
 });
 
-// Endpoint 1: Pedir uma corrida
-app.post('/pedir-corrida', async (req, res) => {
-  const { passageiroId, latOrigem, lngOrigem, latDestino, lngDestino, valorTotal, formaPagamento } = req.body;
-  const valorComissao = (valorTotal || 2500) * 0.12; // 12% de comissão
-
+// 1. REGISTAR NOVO UTILIZADOR
+app.post('/registar-usuario', async (req, res) => {
+  const { nome, telefone, tipoPerfil } = req.body;
   try {
     const result = await pool.query(
-      `INSERT INTO corridas (passageiro_id, origem_coords, destino_coords, valor_total, valor_comissao, forma_pagamento, status)
-       VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), ST_SetSRID(ST_MakePoint($4, $5), 4326), $6, $7, $8, 'SOLICITADA')
-       RETURNING id, criado_em`,
-      [
-        passageiroId || 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 
-        lngOrigem || -15.5843, 
-        latOrigem || 11.8632, 
-        lngDestino || -15.5900, 
-        latDestino || 11.8580, 
-        valorTotal || 2500, 
-        valorComissao, 
-        formaPagamento || 'DINHEIRO'
-      ]
+      `INSERT INTO usuarios (nome, telefone, tipo_perfil, status_conta, saldo_carteira)
+       VALUES ($1, $2, $3, 'ATIVO', $4)
+       ON CONFLICT (telefone) DO UPDATE SET nome = EXCLUDED.nome
+       RETURNING id, nome, telefone, tipo_perfil, saldo_carteira`,
+      [nome || 'Utilizador Bissau', telefone, tipoPerfil || 'PASSAGEIRO', tipoPerfil === 'MOTORISTA' ? 5000.00 : 0.00]
     );
-
-    res.json({ mensagem: 'Corrida solicitada com sucesso!', corrida: result.rows[0] });
+    res.json({ mensagem: 'Utilizador guardado com sucesso!', usuario: result.rows[0] });
   } catch (err) {
-    console.error('Erro no banco de dados:', err.message);
     res.status(500).json({ erro: err.message });
   }
 });
 
-// Endpoint 2: Alimentar o Painel de Gestão (Dashboard)
+// 2. SOLICITAR CORRIDA (PASSAGEIRO)
+app.post('/pedir-corrida', async (req, res) => {
+  const { passageiroId, latOrigem, lngOrigem, latDestino, lngDestino, enderecoOrigem, enderecoDestino, categoria, valorTotal, formaPagamento } = req.body;
+  const valorComissao = (valorTotal || 2500) * 0.12;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO corridas (passageiro_id, origem_coords, destino_coords, endereco_origem, endereco_destino, categoria, valor_total, valor_comissao, forma_pagamento, status)
+       VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), ST_SetSRID(ST_MakePoint($4, $5), 4326), $6, $7, $8, $9, $10, $11, 'SOLICITADA')
+       RETURNING id, status, criado_em`,
+      [
+        passageiroId,
+        lngOrigem || -15.5843, latOrigem || 11.8632,
+        lngDestino || -15.5900, latDestino || 11.8580,
+        enderecoOrigem || 'Origem Bissau', enderecoDestino || 'Destino Bissau',
+        categoria || 'TAXI_TRADICIONAL', valorTotal || 2500, valorComissao, formaPagamento || 'DINHEIRO'
+      ]
+    );
+    res.json({ mensagem: 'Corrida solicitada! A aguardar motorista.', corrida: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+// 3. ATUALIZAR STATUS DA CORRIDA (MOTORISTA: ACEITAR, INICIAR, FINALIZAR)
+app.post('/atualizar-status-corrida', async (req, res) => {
+  const { corridaId, motoristaId, novoStatus } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE corridas 
+       SET status = $1, motorista_id = COALESCE($2, motorista_id), atualizado_em = NOW()
+       WHERE id = $3 RETURNING *`,
+      [novoStatus, motoristaId, corridaId]
+    );
+
+    // Se a corrida for CONCLUIDA, deduz a comissão de 12% da carteira do motorista
+    if (novoStatus === 'CONCLUIDA' && result.rows.length > 0) {
+      const corrida = result.rows[0];
+      await pool.query(
+        `UPDATE usuarios SET saldo_carteira = saldo_carteira - $1 WHERE id = $2`,
+        [corrida.valor_comissao, corrida.motorista_id]
+      );
+    }
+
+    res.json({ mensagem: `Status alterado para ${novoStatus}`, corrida: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+// 4. TRANSMITIR POSIÇÃO GPS DO MOTORISTA
+app.post('/atualizar-posicao-gps', async (req, res) => {
+  const { motoristaId, lat, lng, disponivel } = req.body;
+
+  try {
+    await pool.query(
+      `INSERT INTO posicoes_motoristas (motorista_id, coordenadas, disponivel, ultima_atualizacao)
+       VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), $4, NOW())
+       ON CONFLICT (motorista_id) DO UPDATE 
+       SET coordenadas = EXCLUDED.coordenadas, disponivel = EXCLUDED.disponivel, ultima_atualizacao = NOW()`,
+      [motoristaId, lng, lat, disponivel ?? true]
+    );
+    res.json({ status: 'Posição GPS atualizada' });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+// 5. PAINEL DE GESTÃO (DASHBOARD)
 app.get('/estatisticas-admin', async (req, res) => {
   try {
     const corridasRes = await pool.query('SELECT COUNT(*) AS total, COALESCE(SUM(valor_comissao), 0) AS comissoes FROM corridas');
@@ -62,32 +116,6 @@ app.get('/estatisticas-admin', async (req, res) => {
       ultimasCorridas: ultimasCorridasRes.rows
     });
   } catch (err) {
-    res.status(500).json({ erro: err.message });
-  }
-});
-
-// Endpoint para registrar novos passageiros e motoristas
-app.post('/registar-usuario', async (req, res) => {
-  const { nome, telefone, tipoPerfil } = req.body;
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO usuarios (nome, telefone, tipo_perfil, status_conta, saldo_carteira)
-       VALUES ($1, $2, $3, 'ATIVO', $4)
-       ON CONFLICT (telefone) DO UPDATE SET nome = EXCLUDED.nome
-       RETURNING id, nome, telefone, tipo_perfil, saldo_carteira`,
-      [
-        nome || 'Passageiro Bissau', 
-        telefone, 
-        tipoPerfil || 'PASSAGEIRO', 
-        tipoPerfil === 'MOTORISTA' ? 5000.00 : 0.00
-      ]
-    );
-
-    console.log('Usuário gravado com sucesso:', result.rows[0]);
-    res.json({ mensagem: 'Usuário gravado com sucesso!', usuario: result.rows[0] });
-  } catch (err) {
-    console.error('Erro ao gravar usuário:', err.message);
     res.status(500).json({ erro: err.message });
   }
 });
