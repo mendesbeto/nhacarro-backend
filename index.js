@@ -7,9 +7,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Configuração do Pool para aceitar a ligação do Supabase/Pooler sem recusa
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: {
+    rejectUnauthorized: false
+  },
+  connectionTimeoutMillis: 10000, // Timeout ajustado para 10s
 });
 
 app.get('/', (req, res) => {
