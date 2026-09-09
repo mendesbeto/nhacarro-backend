@@ -17,18 +17,35 @@ app.get('/', (req, res) => {
 });
 
 // 1. REGISTAR NOVO UTILIZADOR
+// Endpoint de Registo de Utilizador (Corrigido para evitar Erro 500)
 app.post('/registar-usuario', async (req, res) => {
   const { nome, telefone, tipoPerfil } = req.body;
+  
+  console.log('--- TENTATIVA DE REGISTO ---');
+  console.log('Nome:', nome, '| Telefone:', telefone, '| Perfil:', tipoPerfil);
+
+  // Garante valores padrão válidos
+  const perfilFormatado = (tipoPerfil || 'PASSAGEIRO').toUpperCase();
+  const nomeFormatado = nome || 'Passageiro Bissau';
+
   try {
     const result = await pool.query(
       `INSERT INTO usuarios (nome, telefone, tipo_perfil, status_conta, saldo_carteira)
        VALUES ($1, $2, $3, 'ATIVO', $4)
        ON CONFLICT (telefone) DO UPDATE SET nome = EXCLUDED.nome
        RETURNING id, nome, telefone, tipo_perfil, saldo_carteira`,
-      [nome || 'Utilizador Bissau', telefone, tipoPerfil || 'PASSAGEIRO', tipoPerfil === 'MOTORISTA' ? 5000.00 : 0.00]
+      [
+        nomeFormatado, 
+        telefone, 
+        perfilFormatado, 
+        perfilFormatado === 'MOTORISTA' ? 5000.00 : 0.00
+      ]
     );
-    res.json({ mensagem: 'Utilizador guardado com sucesso!', usuario: result.rows[0] });
+
+    console.log('REGISTO BEM SUCEDIDO:', result.rows[0]);
+    res.status(200).json({ mensagem: 'Utilizador registado com sucesso!', usuario: result.rows[0] });
   } catch (err) {
+    console.error('ERRO NO SUPABASE:', err.message);
     res.status(500).json({ erro: err.message });
   }
 });
