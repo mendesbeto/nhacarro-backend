@@ -22,9 +22,8 @@ app.post('/registar-usuario', async (req, res) => {
   const { nome, telefone, tipoPerfil } = req.body;
   
   console.log('--- TENTATIVA DE REGISTO ---');
-  console.log('Nome:', nome, '| Telefone:', telefone, '| Perfil:', tipoPerfil);
+  console.log(`Nome: ${nome} | Telefone: ${telefone} | Perfil: ${tipoPerfil}`);
 
-  // Garante valores padrão válidos
   const perfilFormatado = (tipoPerfil || 'PASSAGEIRO').toUpperCase();
   const nomeFormatado = nome || 'Passageiro Bissau';
 
@@ -45,8 +44,9 @@ app.post('/registar-usuario', async (req, res) => {
     console.log('REGISTO BEM SUCEDIDO:', result.rows[0]);
     res.status(200).json({ mensagem: 'Utilizador registado com sucesso!', usuario: result.rows[0] });
   } catch (err) {
-    console.error('ERRO NO SUPABASE:', err.message);
-    res.status(500).json({ erro: err.message });
+    // Exibe o erro detalhado no log do Render
+    console.error('ERRO NO SUPABASE (DETALHADO):', err.stack || err);
+    res.status(500).json({ erro: err.message, detalhe: err.detail });
   }
 });
 
