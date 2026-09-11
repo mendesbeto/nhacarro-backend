@@ -13,10 +13,12 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Teste de conexao imediato ao iniciar o servidor
+// Teste de conexao com detalhe de erro
 pool.connect((err, client, release) => {
   if (err) {
-    console.error('❌ ERRO CRÍTICO DE CONEXÃO COM O SUPABASE:', err.message);
+    console.error('❌ ERRO CRÍTICO DE CONEXÃO COM O SUPABASE:');
+    console.error('Mensagem:', err.message);
+    console.error('Código do Erro:', err.code);
   } else {
     console.log('✅ CONECTADO À BASE DE DADOS SUPABASE COM SUCESSO!');
     release();
