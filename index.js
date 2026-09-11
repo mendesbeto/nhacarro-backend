@@ -1,23 +1,26 @@
 const express = require('express');
 const cors = require('cors');
-
-// Configuração do Pool para aceitar a ligação do Supabase/Pooler sem recusa
 const { Pool } = require('pg');
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-
-// Configuração otimizada para o Supavisor / Pooler do Supabase
+// Ligaçao com SSL flexivel para o Supavisor/Pooler
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  },
-  connectionTimeoutMillis: 10000,
-  idleTimeoutMillis: 30000,
-  max: 10
+  ssl: { rejectUnauthorized: false }
+});
+
+// Teste de conexao imediato ao iniciar o servidor
+pool.connect((err, client, release) => {
+  if (err) {
+    console.error('❌ ERRO CRÍTICO DE CONEXÃO COM O SUPABASE:', err.message);
+  } else {
+    console.log('✅ CONECTADO À BASE DE DADOS SUPABASE COM SUCESSO!');
+    release();
+  }
 });
 
 app.get('/', (req, res) => {
