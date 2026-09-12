@@ -10,7 +10,10 @@ app.use(express.json());
 // Ligaçao com SSL flexivel para o Supavisor/Pooler
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: {
+    rejectUnauthorized: false
+  },
+  connectionTimeoutMillis: 10000
 });
 
 // Teste de conexao com detalhe de erro
